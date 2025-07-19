@@ -1,23 +1,92 @@
 import speech_recognition as sr
-import pyaudio
 import os
 import sys
+import asyncio
+import time
+import joblib
+import numpy as np
+import pyautogui
+from bleak import BleakClient, BleakScanner
+
+UART_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+WINDOW_SIZE = 50
+N_FEATURES = 12
+
+gesture_model = joblib.load('gesture_model.pkl')
+label_encoder = joblib.load('gesture_label_encoder.pkl')
+
+# Shared window buffer for BLE notifications
+imu_window = []
 
 def open_app(command):
     if "open browser" in command:
         print("Opening Firefox...")
         os.system('start firefox')
+        return "browser"
     elif "open media player" in command:
         print("Opening Windows Media Player...")
         os.system('start wmplayer')
+        return "media"
+    elif "open file explorer" in command:
+        print("Opening File Explorer...")
+        os.system('start explorer')
+        return "explorer"
     else:
         print("Command not recognized.")
+        return None
+
+def handle_gesture(mode, gesture_label):
+    if mode in ["browser", "explorer"]:
+        if gesture_label == "pointup":
+            pyautogui.typewrite('A')
+            print("Typed 'A' due to 'pointup' gesture.")
+    elif mode == "media":
+        # Placeholder: define media gestures here
+        pass
+
+async def ble_inference_loop(mode):
+    global imu_window
+    print("Scanning for BLE devices...")
+    devices = await BleakScanner.discover()
+    target = None
+    for d in devices:
+        if "Nano33BLE-Gesture" in d.name:
+            target = d
+            break
+    if not target:
+        print("Nano33BLE-Gesture not found.")
+        return
+
+    def handle_data(sender, data):
+        global imu_window
+        line = data.decode('utf-8').strip()
+        if line:
+            imu_vals = [float(x) for x in line.split(',')]
+            imu_window.append(imu_vals)
+            if len(imu_window) >= WINDOW_SIZE:
+                X_live = np.array(imu_window[-WINDOW_SIZE:]).flatten().reshape(1, -1)
+                gesture_pred = gesture_model.predict(X_live)
+                gesture_label = label_encoder.inverse_transform(gesture_pred)[0]
+                print(f"Detected gesture: {gesture_label}")
+                handle_gesture(mode, gesture_label)
+                imu_window = []
+
+    async with BleakClient(target.address) as client:
+        await client.start_notify(UART_TX_CHAR_UUID, handle_data)
+        print(f"Connected to {target.address} - Listening for gestures...")
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            await client.stop_notify(UART_TX_CHAR_UUID)
+            print("Stopped BLE notifications.")
 
 def main():
     recognizer = sr.Recognizer()
     mic = sr.Microphone()
 
-    print("Say 'open browser' or 'open media player'...")
+    print("Say 'open browser', 'open media player', or 'open file explorer'...")
 
     while True:
         with mic as source:
@@ -27,9 +96,13 @@ def main():
         try:
             command = recognizer.recognize_google(audio).lower()
             print("You said:", command)
-            open_app(command)
-            # Uncomment next line to exit after a successful command
-            # sys.exit()
+            mode = open_app(command)
+            if mode is None:
+                continue
+
+            print(f"Mode set to: {mode}. Now listening for gestures over BLE...")
+            asyncio.run(ble_inference_loop(mode))
+
         except sr.UnknownValueError:
             print("Sorry, could not understand audio. Try again.")
         except sr.RequestError as e:
