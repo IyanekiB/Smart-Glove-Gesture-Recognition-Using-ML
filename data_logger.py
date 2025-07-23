@@ -1,12 +1,15 @@
 import asyncio
 from bleak import BleakClient, BleakScanner
 import csv
+import os
 
 UART_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 label = input("Enter gesture label (e.g. swipe_left): ")
-filename = f"{label}_gesture.csv"
+sample_num = input("Enter sample number: ")
+os.makedirs("data", exist_ok=True)
+filename = os.path.join("data", f"{label}_{sample_num}.csv")
 
 async def run(address):
     with open(filename, "w", newline='') as f:
@@ -17,7 +20,7 @@ async def run(address):
             try:
                 line = data.decode('utf-8').strip()
                 if line:
-                    row = line.split(',') + [label]
+                    row = line.split(',')
                     writer.writerow(row)
             except Exception as e:
                 print("Error:", e)

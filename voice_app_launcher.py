@@ -7,22 +7,27 @@ import joblib
 import numpy as np
 import pyautogui
 from bleak import BleakClient, BleakScanner
+from tensorflow.keras.models import load_model
 
 UART_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 WINDOW_SIZE = 50
 N_FEATURES = 12
 
-gesture_model = joblib.load('gesture_model.pkl')
+gesture_model = load_model('gesture_lstm_model.h5')         # For Keras LSTM model
 label_encoder = joblib.load('gesture_label_encoder.pkl')
 
-# Shared window buffer for BLE notifications
 imu_window = []
 
 def open_app(command):
     if "open browser" in command:
-        print("Opening Firefox...")
-        os.system('start firefox')
+        print("Opening Edge...")
+        os.system('start msedge')  # or 'start chrome' for Chrome
+        # Wait a moment for the browser to open
+        time.sleep(2.5)
+        # Focus the address/search bar
+        pyautogui.hotkey('ctrl', 'l')
+        time.sleep(0.2)
         return "browser"
     elif "open media player" in command:
         print("Opening Windows Media Player...")
@@ -36,13 +41,16 @@ def open_app(command):
         print("Command not recognized.")
         return None
 
-def handle_gesture(mode, gesture_label):
+def handle_gesture(mode, gesture_label, confidence):
     if mode in ["browser", "explorer"]:
-        if gesture_label == "pointup":
-            pyautogui.typewrite('A')
-            print("Typed 'A' due to 'pointup' gesture.")
+        if gesture_label == "letter_c" and confidence > 0.8:
+            pyautogui.typewrite('C')
+            print("Typed 'C' due to 'letter_c' gesture")
+        if gesture_label == "letter_l" and confidence > 0.8:
+            pyautogui.typewrite('L')
+            print("Typed 'L' due to 'letter_l' gesture")
     elif mode == "media":
-        # Placeholder: define media gestures here
+        # Add media player gesture handling if needed
         pass
 
 async def ble_inference_loop(mode):
@@ -51,7 +59,7 @@ async def ble_inference_loop(mode):
     devices = await BleakScanner.discover()
     target = None
     for d in devices:
-        if "Nano33BLE-Gesture" in d.name:
+        if d.name and "Nano33BLE-Gesture" in d.name:
             target = d
             break
     if not target:
@@ -65,11 +73,13 @@ async def ble_inference_loop(mode):
             imu_vals = [float(x) for x in line.split(',')]
             imu_window.append(imu_vals)
             if len(imu_window) >= WINDOW_SIZE:
-                X_live = np.array(imu_window[-WINDOW_SIZE:]).flatten().reshape(1, -1)
-                gesture_pred = gesture_model.predict(X_live)
-                gesture_label = label_encoder.inverse_transform(gesture_pred)[0]
-                print(f"Detected gesture: {gesture_label}")
-                handle_gesture(mode, gesture_label)
+                X_live = np.array(imu_window[-WINDOW_SIZE:]).reshape(1, WINDOW_SIZE, N_FEATURES)
+                probs = gesture_model.predict(X_live)
+                gesture_idx = np.argmax(probs)
+                confidence =probs[0][gesture_idx]
+                gesture_label = label_encoder.inverse_transform([gesture_idx])[0]
+                print(f"Detected gesture: {gesture_label} (confidence {confidence:.2f})")
+                handle_gesture(mode, gesture_label, confidence)
                 imu_window = []
 
     async with BleakClient(target.address) as client:
