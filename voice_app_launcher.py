@@ -29,14 +29,19 @@ def open_app(command):
         pyautogui.hotkey('ctrl', 'l')
         time.sleep(0.2)
         return "browser"
-    elif "open media player" in command:
-        print("Opening Windows Media Player...")
-        os.system('start wmplayer')
+    elif "open media" in command:
+        print("Opening video in default media player...")
+        video_path = r"video\Demo.mp4"
+        os.startfile(video_path)
+        time.sleep(2.5) # Wait for video to open
         return "media"
     elif "open file explorer" in command:
         print("Opening File Explorer...")
         os.system('start explorer')
         return "explorer"
+    elif "exit" in command or "quit" in command:
+        print("Exiting orogram")
+        sys.exit(0)
     else:
         print("Command not recognized.")
         return None
@@ -50,11 +55,37 @@ def handle_gesture(mode, gesture_label, confidence):
             pyautogui.typewrite('L')
             print("Typed 'L' due to 'letter_l' gesture")
     elif mode == "media":
-        # Add media player gesture handling if needed
+        if gesture_label == "point_left" and confidence > 0.8:
+            pyautogui.press('left')      # 3-10 seconds back (works for most players)
+            # pyautogui.hotkey('shift', 'left')  # For VLC rewind
+            # pyautogui.hotkey('ctrl', 'left')   # For Movies & TV app
+            print("Rewind triggered by 'point_left' gesture")
         pass
+
+# Close the app based on gesture
+def close_app(mode):
+    if mode == "browser":
+        # Close Microsoft Edge
+        os.system('taskkill /IM msedge.exe /F')
+        print("Closed Edge browser.")
+    elif mode == "media":
+        # Try to close default video players (add more as needed)
+        os.system('taskkill /IM wmplayer.exe /F')     # Windows Media Player
+        os.system('taskkill /IM vlc.exe /F')          # VLC
+        os.system('taskkill /IM MoviesAndTV.exe /F')  # Windows Movies & TV
+        print("Closed media player(s).")
+    elif mode == "explorer":
+        # Close all File Explorer windows
+        os.system('taskkill /IM explorer.exe /F')
+        # Restart explorer to restore desktop/taskbar
+        time.sleep(1)
+        os.system('start explorer')
+        print("Closed File Explorer.")
 
 async def ble_inference_loop(mode):
     global imu_window
+    pinch_exit_detected = False
+
     print("Scanning for BLE devices...")
     devices = await BleakScanner.discover()
     target = None
@@ -67,6 +98,7 @@ async def ble_inference_loop(mode):
         return
 
     def handle_data(sender, data):
+        nonlocal pinch_exit_detected
         global imu_window
         line = data.decode('utf-8').strip()
         if line:
@@ -79,15 +111,22 @@ async def ble_inference_loop(mode):
                 confidence =probs[0][gesture_idx]
                 gesture_label = label_encoder.inverse_transform([gesture_idx])[0]
                 print(f"Detected gesture: {gesture_label} (confidence {confidence:.2f})")
-                handle_gesture(mode, gesture_label, confidence)
+                if gesture_label == "pinch_exit" and confidence > 0.8:
+                    print("Pinch exit detected, exiting BLE loop.")
+                    pinch_exit_detected = True
+                else:
+                    handle_gesture(mode, gesture_label, confidence)
                 imu_window = []
 
     async with BleakClient(target.address) as client:
         await client.start_notify(UART_TX_CHAR_UUID, handle_data)
         print(f"Connected to {target.address} - Listening for gestures...")
         try:
-            while True:
+            while not pinch_exit_detected:
                 await asyncio.sleep(1)
+            await client.stop_notify(UART_TX_CHAR_UUID)
+            close_app(mode)
+            print("Stopped BLE notifications.")
         except KeyboardInterrupt:
             await client.stop_notify(UART_TX_CHAR_UUID)
             print("Stopped BLE notifications.")
