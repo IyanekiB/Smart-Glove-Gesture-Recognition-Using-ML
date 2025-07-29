@@ -8,14 +8,17 @@ Adafruit_MPU6050 mpu2; // Address 0x69 (AD0=3.3V)
 
 #define BLE_UUID_UART_SERVICE           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 #define BLE_UUID_UART_TX_CHARACTERISTIC "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+#define STATUS_LED LED_BUILTIN  // Onboard LED (usually pin 13)
 
 BLEService uartService(BLE_UUID_UART_SERVICE);
 BLECharacteristic txCharacteristic(BLE_UUID_UART_TX_CHARACTERISTIC, BLERead | BLENotify, 128);
 
 void setup() {
-  delay(500);
   Serial.begin(115200);
   // while (!Serial);  // Uncomment this if you want BLE to work otherwise it wont
+
+  pinMode(STATUS_LED, OUTPUT);
+  digitalWrite(STATUS_LED, LOW); // LED OFF (not connected)
 
   Wire.begin();
   if (!mpu1.begin(0x68)) {
@@ -46,6 +49,7 @@ void loop() {
   if (central) {
     Serial.print("Connected to central: ");
     Serial.println(central.address());
+    digitalWrite(STATUS_LED, HIGH);  // LED ON (BLE connected)
 
     while (central.connected()) {
       sensors_event_t a1, g1, temp1, a2, g2, temp2;
@@ -84,8 +88,9 @@ void loop() {
       Serial.print(g2.gyro.y); Serial.print(", ");
       Serial.println(g2.gyro.z);
 
-      delay(100); // ~50Hz
+      delay(20); // ~50Hz
     }
+    digitalWrite(STATUS_LED, LOW);
     Serial.println("Disconnected from central");
   }
 }

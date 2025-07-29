@@ -8,6 +8,8 @@ import numpy as np
 import pyautogui
 from bleak import BleakClient, BleakScanner
 from tensorflow.keras.models import load_model
+import subprocess
+import shutil
 
 UART_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -16,16 +18,38 @@ N_FEATURES = 12
 
 gesture_model = load_model('gesture_lstm_model.h5')         # For Keras LSTM model
 label_encoder = joblib.load('gesture_label_encoder.pkl')
+browser_proc = None
+browser_profile_dir = None
 
 imu_window = []
 
 def open_app(command):
+    global browser_proc, browser_profile_dir
     if "open browser" in command:
         print("Opening Edge...")
-        os.system('start msedge')  # or 'start chrome' for Chrome
-        # Wait a moment for the browser to open
+        import tempfile
+        browser_profile_dir = tempfile.mkdtemp(prefix="edge_profile_")
+        # Path to Edge executable may need adjusting depending on system install
+        edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        # If not present, try: r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+        try:
+            browser_proc = subprocess.Popen([
+                edge_path,
+                f'--user-data-dir={browser_profile_dir}',
+                '--no-first-run',
+                '--no-default-browser-check',
+                'https://www.google.com'
+            ])
+        except FileNotFoundError:
+            print("Could not find Edge at standard path.")
+            browser_proc = subprocess.Popen([
+                'msedge',
+                f'--user-data-dir={browser_profile_dir}',
+                '--no-first-run',
+                '--no-default-browser-check',
+                'about:blank'
+            ])
         time.sleep(2.5)
-        # Focus the address/search bar
         pyautogui.hotkey('ctrl', 'l')
         time.sleep(0.2)
         return "browser"
@@ -64,10 +88,19 @@ def handle_gesture(mode, gesture_label, confidence):
 
 # Close the app based on gesture
 def close_app(mode):
-    if mode == "browser":
-        # Close Microsoft Edge
-        os.system('taskkill /IM msedge.exe /F')
-        print("Closed Edge browser.")
+    global browser_proc, browser_profile_dir
+    if mode == "browser" and browser_proc is not None:
+        try:
+            browser_proc.terminate()
+            browser_proc.wait(timeout=5)
+            print("Closed only the launched Edge instance.")
+        except Exception as e:
+            print("Failed to close browser process:", e)
+        # Clean up the temp user profile
+        if browser_profile_dir:
+            shutil.rmtree(browser_profile_dir, ignore_errors=True)
+            browser_profile_dir = None
+        browser_proc = None
     elif mode == "media":
         # Try to close default video players (add more as needed)
         os.system('taskkill /IM wmplayer.exe /F')     # Windows Media Player
