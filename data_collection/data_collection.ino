@@ -13,8 +13,9 @@ BLEService uartService(BLE_UUID_UART_SERVICE);
 BLECharacteristic txCharacteristic(BLE_UUID_UART_TX_CHARACTERISTIC, BLERead | BLENotify, 128);
 
 void setup() {
+  delay(500);
   Serial.begin(115200);
-  while (!Serial);
+  // while (!Serial);  // Uncomment this if you want BLE to work otherwise it wont
 
   Wire.begin();
   if (!mpu1.begin(0x68)) {
@@ -83,7 +84,7 @@ void loop() {
       Serial.print(g2.gyro.y); Serial.print(", ");
       Serial.println(g2.gyro.z);
 
-      delay(20); // ~50Hz
+      delay(100); // ~50Hz
     }
     Serial.println("Disconnected from central");
   }
