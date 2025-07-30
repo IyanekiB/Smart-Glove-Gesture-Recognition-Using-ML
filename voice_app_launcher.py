@@ -65,8 +65,9 @@ def open_app(command):
         os.system(f'start explorer "{folder_path}"')
         time.sleep(2.5)
         # Move focus to the first file/folder in the current view
-        pyautogui.press('tab')   # Sometimes two tabs are needed for full focus
-        pyautogui.press('tab')
+        # For loop to press 'Tab' key 7 times
+        for i in range(7):
+            pyautogui.press('tab') # Sometimes two tabs are needed for full focus
         pyautogui.press('down')  # Select the first file/folder (down from parent folder)
         print("Selected the first file in File Explorer for gesture navigation.")
         return "explorer"
@@ -88,10 +89,10 @@ def handle_gesture(mode, gesture_label, confidence):
 
     elif mode == "media":
         if gesture_label == "point_left" and confidence > 0.8:
-            pyautogui.press('left')
+            pyautogui.hotkey('ctrl', 'left')
             print("Rewind triggered by 'point_left' gesture")
         if gesture_label == "point_right" and confidence > 0.8:
-            pyautogui.press('right')
+            pyautogui.hotkey('ctrl','right')
             print("Fast-forward triggered by 'point_right' gesture")
 
     elif mode == "explorer":
