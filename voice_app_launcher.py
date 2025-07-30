@@ -145,7 +145,7 @@ async def ble_inference_loop(mode):
     global imu_window
     pinch_exit_detected = False
 
-    print("Scanning for BLE devices...")
+    print("Looking for Nano33BLE-Gesture device...")
     devices = await BleakScanner.discover()
     target = None
     for d in devices:
