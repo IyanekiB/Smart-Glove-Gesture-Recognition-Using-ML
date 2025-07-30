@@ -70,8 +70,11 @@ print("Confusion Matrix:")
 print(cm)
 
 disp = ConfusionMatrixDisplay(cm, display_labels=le.classes_)
-disp.plot(cmap='Blues')
+fig, ax = plt.subplots(figsize=(8, 6))  # Optional: Set a bigger figure size
+disp.plot(cmap='Blues', ax=ax)
 plt.title("Gesture Recognition Confusion Matrix")
+plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+plt.tight_layout()
 plt.savefig("confusion_matrix.png")
 plt.show()
 

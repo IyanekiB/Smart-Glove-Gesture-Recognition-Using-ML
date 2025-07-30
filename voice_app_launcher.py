@@ -61,7 +61,14 @@ def open_app(command):
         return "media"
     elif "open file explorer" in command:
         print("Opening File Explorer...")
-        os.system('start explorer')
+        folder_path = r"C:\Users\iyann\Downloads"
+        os.system(f'start explorer "{folder_path}"')
+        time.sleep(2.5)
+        # Move focus to the first file/folder in the current view
+        pyautogui.press('tab')   # Sometimes two tabs are needed for full focus
+        pyautogui.press('tab')
+        pyautogui.press('down')  # Select the first file/folder (down from parent folder)
+        print("Selected the first file in File Explorer for gesture navigation.")
         return "explorer"
     elif "exit" in command or "quit" in command:
         print("Exiting orogram")
@@ -71,20 +78,38 @@ def open_app(command):
         return None
 
 def handle_gesture(mode, gesture_label, confidence):
-    if mode in ["browser", "explorer"]:
+    if mode == "browser":
         if gesture_label == "letter_c" and confidence > 0.8:
             pyautogui.typewrite('C')
             print("Typed 'C' due to 'letter_c' gesture")
         if gesture_label == "letter_l" and confidence > 0.8:
             pyautogui.typewrite('L')
             print("Typed 'L' due to 'letter_l' gesture")
+
     elif mode == "media":
         if gesture_label == "point_left" and confidence > 0.8:
-            pyautogui.press('left')      # 3-10 seconds back (works for most players)
-            # pyautogui.hotkey('shift', 'left')  # For VLC rewind
-            # pyautogui.hotkey('ctrl', 'left')   # For Movies & TV app
+            pyautogui.press('left')
             print("Rewind triggered by 'point_left' gesture")
-        pass
+        if gesture_label == "point_right" and confidence > 0.8:
+            pyautogui.press('right')
+            print("Fast-forward triggered by 'point_right' gesture")
+
+    elif mode == "explorer":
+        if gesture_label == "scroll_up" and confidence > 0.8:
+            pyautogui.press('up')
+            print("Moved selection up in File Explorer")
+        if gesture_label == "scroll_down" and confidence > 0.8:
+            pyautogui.press('down')
+            print("Moved selection down in File Explorer")
+        if gesture_label == "select_file" and confidence > 0.8:
+            pyautogui.press('enter')
+            print("Opened the selected file in File Explorer.")
+        if gesture_label == "letter_c" and confidence > 0.8:
+            pyautogui.typewrite('C')
+            print("Typed 'C' in File Explorer")
+        if gesture_label == "letter_l" and confidence > 0.8:
+            pyautogui.typewrite('L')
+            print("Typed 'L' in File Explorer")
 
 # Close the app based on gesture
 def close_app(mode):
