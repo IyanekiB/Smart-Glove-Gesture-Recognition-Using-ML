@@ -71,7 +71,7 @@ def open_app(command):
         print("Selected the first file in File Explorer for gesture navigation.")
         return "explorer"
     elif "exit" in command or "quit" in command:
-        print("Exiting orogram")
+        print("Exiting program")
         sys.exit(0)
     else:
         print("Command not recognized.")
