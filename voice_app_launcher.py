@@ -144,14 +144,9 @@ def close_app(mode):
         except Exception as e:
             print("Failed to close media player process:", e)
         media_proc = None
-    elif mode == "explorer" and explorer_proc is not None:
-        try:
-            explorer_proc.terminate()
-            explorer_proc.wait(timeout=5)
-            print("Closed only the launched File Explorer window.")
-        except Exception as e:
-            print("Failed to close explorer process:", e)
-        explorer_proc = None
+    elif mode == "explorer":
+        pyautogui.hotkey('alt', 'f4')
+        print("Closed the launched File Explorer window.")
 
 async def ble_inference_loop(mode):
     global imu_window
