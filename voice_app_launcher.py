@@ -10,34 +10,36 @@ from bleak import BleakClient, BleakScanner
 from tensorflow.keras.models import load_model
 import subprocess
 import shutil
+import tempfile
 
 UART_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 UART_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 WINDOW_SIZE = 50
 N_FEATURES = 12
 
-gesture_model = load_model('gesture_lstm_model.h5')         # For Keras LSTM model
+gesture_model = load_model('gesture_lstm_model.h5')
 label_encoder = joblib.load('gesture_label_encoder.pkl')
+
 browser_proc = None
 browser_profile_dir = None
+media_proc = None
+explorer_proc = None
 
 imu_window = []
 
 def open_app(command):
-    global browser_proc, browser_profile_dir
+    global browser_proc, browser_profile_dir, media_proc, explorer_proc
     if "open browser" in command:
         print("Opening Edge...")
-        import tempfile
         browser_profile_dir = tempfile.mkdtemp(prefix="edge_profile_")
-        # Path to Edge executable may need adjusting depending on system install
         edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-        # If not present, try: r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
         try:
             browser_proc = subprocess.Popen([
                 edge_path,
                 f'--user-data-dir={browser_profile_dir}',
                 '--no-first-run',
                 '--no-default-browser-check',
+                '--disable-features=msEdgeFirstRunExperience,WelcomePageExperiment',
                 'https://www.google.com'
             ])
         except FileNotFoundError:
@@ -47,28 +49,37 @@ def open_app(command):
                 f'--user-data-dir={browser_profile_dir}',
                 '--no-first-run',
                 '--no-default-browser-check',
-                'about:blank'
+                '--disable-features=msEdgeFirstRunExperience,WelcomePageExperiment',
+                'https://www.google.com'
             ])
         time.sleep(2.5)
         pyautogui.hotkey('ctrl', 'l')
         time.sleep(0.2)
         return "browser"
     elif "open media" in command:
-        print("Opening video in default media player...")
-        video_path = r"video\Demo.mp4"
-        os.startfile(video_path)
-        time.sleep(2.5) # Wait for video to open
+        print("Opening video in legacy Windows Media Player...")
+        # Try legacy WMP (wmplayer.exe)
+        video_path = os.path.abspath(r"video\Demo.mp4")
+        wmplayer_path = r"C:\Program Files (x86)\Windows Media Player\wmplayer.exe"
+        if not os.path.exists(wmplayer_path):
+            wmplayer_path = r"C:\Program Files\Windows Media Player\wmplayer.exe"
+        try:
+            media_proc = subprocess.Popen([wmplayer_path, video_path])
+        except Exception as e:
+            print("Failed to open video in legacy Windows Media Player:", e)
+            media_proc = None
+        time.sleep(2.5)
         return "media"
     elif "open file explorer" in command:
         print("Opening File Explorer...")
         folder_path = r"C:\Users\iyann\Downloads"
-        os.system(f'start explorer "{folder_path}"')
+        # Open and track only the created explorer window
+        explorer_proc = subprocess.Popen(['explorer', folder_path])
         time.sleep(2.5)
         # Move focus to the first file/folder in the current view
-        # For loop to press 'Tab' key 7 times
-        for i in range(7):
-            pyautogui.press('tab') # Sometimes two tabs are needed for full focus
-        pyautogui.press('down')  # Select the first file/folder (down from parent folder)
+        for i in range(13):
+            pyautogui.press('tab')
+        pyautogui.press('down')
         print("Selected the first file in File Explorer for gesture navigation.")
         return "explorer"
     elif "exit" in command or "quit" in command:
@@ -89,10 +100,10 @@ def handle_gesture(mode, gesture_label, confidence):
 
     elif mode == "media":
         if gesture_label == "point_left" and confidence > 0.8:
-            pyautogui.hotkey('ctrl', 'left')
+            pyautogui.hotkey('ctrl', 'shift', 'b')
             print("Rewind triggered by 'point_left' gesture")
         if gesture_label == "point_right" and confidence > 0.8:
-            pyautogui.hotkey('ctrl','right')
+            pyautogui.hotkey('ctrl', 'shift', 'b')
             print("Fast-forward triggered by 'point_right' gesture")
 
     elif mode == "explorer":
@@ -112,9 +123,8 @@ def handle_gesture(mode, gesture_label, confidence):
             pyautogui.typewrite('L')
             print("Typed 'L' in File Explorer")
 
-# Close the app based on gesture
 def close_app(mode):
-    global browser_proc, browser_profile_dir
+    global browser_proc, browser_profile_dir, media_proc, explorer_proc
     if mode == "browser" and browser_proc is not None:
         try:
             browser_proc.terminate()
@@ -122,28 +132,31 @@ def close_app(mode):
             print("Closed only the launched Edge instance.")
         except Exception as e:
             print("Failed to close browser process:", e)
-        # Clean up the temp user profile
         if browser_profile_dir:
             shutil.rmtree(browser_profile_dir, ignore_errors=True)
             browser_profile_dir = None
         browser_proc = None
-    elif mode == "media":
-        # Try to close default video players (add more as needed)
-        os.system('taskkill /IM wmplayer.exe /F')     # Windows Media Player
-        os.system('taskkill /IM vlc.exe /F')          # VLC
-        os.system('taskkill /IM MoviesAndTV.exe /F')  # Windows Movies & TV
-        print("Closed media player(s).")
-    elif mode == "explorer":
-        # Close all File Explorer windows
-        os.system('taskkill /IM explorer.exe /F')
-        # Restart explorer to restore desktop/taskbar
-        time.sleep(1)
-        os.system('start explorer')
-        print("Closed File Explorer.")
+    elif mode == "media" and media_proc is not None:
+        try:
+            media_proc.terminate()
+            media_proc.wait(timeout=5)
+            print("Closed only the launched Media Player instance.")
+        except Exception as e:
+            print("Failed to close media player process:", e)
+        media_proc = None
+    elif mode == "explorer" and explorer_proc is not None:
+        try:
+            explorer_proc.terminate()
+            explorer_proc.wait(timeout=5)
+            print("Closed only the launched File Explorer window.")
+        except Exception as e:
+            print("Failed to close explorer process:", e)
+        explorer_proc = None
 
 async def ble_inference_loop(mode):
     global imu_window
     pinch_exit_detected = False
+    pinch_exit_count = 0
 
     print("Looking for Nano33BLE-Gesture device...")
     devices = await BleakScanner.discover()
@@ -157,7 +170,7 @@ async def ble_inference_loop(mode):
         return
 
     def handle_data(sender, data):
-        nonlocal pinch_exit_detected
+        nonlocal pinch_exit_detected, pinch_exit_count
         global imu_window
         line = data.decode('utf-8').strip()
         if line:
@@ -170,10 +183,14 @@ async def ble_inference_loop(mode):
                 confidence =probs[0][gesture_idx]
                 gesture_label = label_encoder.inverse_transform([gesture_idx])[0]
                 print(f"Detected gesture: {gesture_label} (confidence {confidence:.2f})")
-                if gesture_label == "pinch_exit" and confidence > 0.8:
-                    print("Pinch exit detected, exiting BLE loop.")
-                    pinch_exit_detected = True
+                # Only trigger pinch_exit if two consecutive windows see high-confidence pinch_exit
+                if gesture_label == "pinch_exit" and confidence > 0.95:
+                    pinch_exit_count += 1
+                    if pinch_exit_count >= 2:
+                        print("Pinch exit detected, exiting BLE loop.")
+                        pinch_exit_detected = True
                 else:
+                    pinch_exit_count = 0
                     handle_gesture(mode, gesture_label, confidence)
                 imu_window = []
 
