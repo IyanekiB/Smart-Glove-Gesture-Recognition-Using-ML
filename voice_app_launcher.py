@@ -103,7 +103,7 @@ def handle_gesture(mode, gesture_label, confidence):
             pyautogui.hotkey('ctrl', 'shift', 'b')
             print("Rewind triggered by 'point_left' gesture")
         if gesture_label == "point_right" and confidence > 0.8:
-            pyautogui.hotkey('ctrl', 'shift', 'b')
+            pyautogui.hotkey('ctrl', 'shift', 'f')
             print("Fast-forward triggered by 'point_right' gesture")
 
     elif mode == "explorer":
@@ -136,14 +136,9 @@ def close_app(mode):
             shutil.rmtree(browser_profile_dir, ignore_errors=True)
             browser_profile_dir = None
         browser_proc = None
-    elif mode == "media" and media_proc is not None:
-        try:
-            media_proc.terminate()
-            media_proc.wait(timeout=5)
-            print("Closed only the launched Media Player instance.")
-        except Exception as e:
-            print("Failed to close media player process:", e)
-        media_proc = None
+    elif mode == "media":
+        pyautogui.hotkey('alt', 'f4')
+        print("Closed the launched media player window.")
     elif mode == "explorer":
         pyautogui.hotkey('alt', 'f4')
         print("Closed the launched File Explorer window.")
