@@ -34,16 +34,30 @@ The glove communicates wirelessly via Bluetooth (BLE) to a PC, where a machine l
 - Plots and Figures (*so far*):
   - ```class_distribution.png``` (class balance):
     
-      <img width="800" height="400" alt="class_distribution" src="https://github.com/user-attachments/assets/f61473ad-c1d6-48b2-b989-511d0b3a4954" />
+       <img width="800" height="400" alt="class_distribution" src="https://github.com/user-attachments/assets/f61473ad-c1d6-48b2-b989-511d0b3a4954" />
+
+      - The training dataset shows a **reasonably balanced distribution** across 8 gesture classes, with window counts ranging from approximately 3,000 to 7,000 samples per gesture. The `pinch_exit` gesture has the highest representation (approx. 7,200 windows), while `letter_l` has the lowest (approx. 3,000 windows).
+      - The slight imbalance is due to there not being enough datasets for the model to train through. Having additional data collection, I belive, would greatly improve model robustness.
+        
   - ```confusion_matrix.png``` (ML performance):
 
       <img width="800" height="600" alt="confusion_matrix" src="https://github.com/user-attachments/assets/72319c09-7b27-45b7-9cdd-fe862c7af466" />
-
+      
+      - The confusion matrix demonstrates **exceptional model performance** with near-perfect classification accuracy. The diagonal dominance shows:
+          - Most gestures achieve close to 100% accuracy (dark blue diagonal elements)
+          - Minimal cross-class confusion with only occasional single-digit misclassifications
+          - `letter_l` shows the most confusion (6 misclassifications as `pinch_exit`)
+          - Overall performance validates the dual-IMU sensor approach for gesture differentiation 
       - **(Accuracy ~99.7%, Macro-F1 ~1.00)**
  
   - ```pca_gesture_scatter.png``` (feature space visualization):
 
       <img width="800" height="600" alt="pca_gesture_scatter" src="https://github.com/user-attachments/assets/b88cdec2-3539-4b13-8d05-f3d51ed6474a" />
+      
+      - The PCA scatter plot reveals **distinct clustering patterns** in the reduced feature space:
+          - **Overlapping regions** between some classes (particularly in the center), explaining minor confusion matrix errors  
+          - **Spatial distribution** shows that scroll gestures (`scroll_down`, `scroll_up`) cluster in the upper-right region
+          - **Dense central cluster** suggests some gestures share similar motion characteristics but are still distinguishable by the LSTM model 
 
 # Setup & Reproduction Instructions
 1. **Hardware**
@@ -70,18 +84,3 @@ The glove communicates wirelessly via Bluetooth (BLE) to a PC, where a machine l
 - Most scripts require ```numpy```, ```tensorflow```, ```scikit-learn```, ```matplotlib```, ```bleak```, ```pyautogui```, and related packages.
 - Adjust file paths as needed for your local setup.
 - For detailed report, design diagrams, and more, see accompanying documentation.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
